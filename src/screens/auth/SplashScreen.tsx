@@ -265,13 +265,14 @@ export function SplashScreen() {
                 ],
               },
             ]}
+          >
           <Image
             source={require('../../assets/logo.png')}
             style={styles.logo}
             resizeMode="contain"
             accessibilityIgnoresInvertColors
           />
-          </View>
+          </Animated.View>
         </Animated.View>
         <View style={styles.word}>
           {WORD.map((c, i) => (
@@ -346,6 +347,7 @@ const styles = StyleSheet.create({
     borderRadius: 26,
     backgroundColor: '#4A8CFF',
   },
+  logo: {
     width: 80,
     height: 80,
     borderRadius: 26,

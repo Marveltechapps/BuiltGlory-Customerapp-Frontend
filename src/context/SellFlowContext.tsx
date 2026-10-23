@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 import { propertyTypeById } from '../config/catalog';
+import { sellKind } from '../screens/sell/sellCategory';
 import { uploadDocument } from '../services/document.service';
 import {
   createSellDraft,
@@ -48,6 +49,12 @@ export interface SellForm {
   facing: string;
   furnish: string;
   parking: number;
+  parkingType: string;
+  share: string;
+  totalValue: string;
+  scope: string;
+  furnishDetails: string;
+  suitableFor: string;
   plotArea: string;
   landArea: string;
   zoning: string;
@@ -83,6 +90,12 @@ export const EMPTY_SELL_FORM: SellForm = {
   facing: 'East',
   furnish: 'Unfurnished',
   parking: 1,
+  parkingType: '',
+  share: '',
+  totalValue: '',
+  scope: '',
+  furnishDetails: '',
+  suitableFor: '',
   plotArea: '',
   landArea: '',
   zoning: '',
@@ -120,6 +133,7 @@ export function toSellPayload(
   step?: number,
 ): SellRequestPayload {
   const type = propertyTypeById(form.typeId);
+  const kind = sellKind(form.typeId);
   const features = FEATURE_AMENITIES.filter(([k]) => form[k]).map(
     ([, label]) => label,
   );
@@ -128,7 +142,9 @@ export function toSellPayload(
     form.roadAccess ? `Road access: ${form.roadAccess}` : '',
   ].filter(Boolean);
   const amenities = [...new Set([...form.amenities, ...features, ...extras])];
-  const specs = {
+  const furnished =
+    form.furnish && form.furnish.toLowerCase() !== 'unfurnished';
+  const homeSpecs = {
     subType: text(form.subType),
     bhk: text(form.bhk),
     builtUpArea: num(form.builtUp),
@@ -140,8 +156,36 @@ export function toSellPayload(
     age: text(form.age),
     facing: text(form.facing),
     furnishing: text(form.furnish),
+    furnishDetails: furnished ? text(form.furnishDetails) : undefined,
     parking: form.parking >= 0 ? form.parking : undefined,
+    parkingType: form.parking > 0 ? text(form.parkingType) : undefined,
   };
+  const specs =
+    kind === 'home'
+      ? homeSpecs
+      : kind === 'plot'
+        ? {
+            subType: text(form.subType),
+            plotArea: num(form.plotArea) ?? num(form.landArea),
+            facing: text(form.facing),
+          }
+        : kind === 'commercial'
+          ? {
+              subType: text(form.subType),
+              commercialType: text(form.suitableFor),
+              builtUpArea: num(form.builtUp),
+              plotArea: num(form.plotArea),
+              floor: text(form.floor),
+              facing: text(form.facing),
+              parking: form.parking >= 0 ? form.parking : undefined,
+              parkingType: form.parking > 0 ? text(form.parkingType) : undefined,
+            }
+          : kind === 'fractional'
+            ? {
+                sharePercentage: num(form.share),
+                totalPropertyValue: num(form.totalValue),
+              }
+            : { scopeOfWork: text(form.scope) };
   const payload: SellRequestPayload = {
     propertyType: type?.apiType ?? form.typeId,
     propertyTitle: form.title.trim(),
@@ -157,7 +201,7 @@ export function toSellPayload(
       Object.entries(specs).filter(([, v]) => v !== undefined),
     ),
     amenities,
-    ownershipType: text(form.ownership),
+    ...(kind === 'interior' ? {} : { ownershipType: text(form.ownership) }),
     photos: form.photos.filter(p => p.url).map(p => p.url as string),
     draftStep: step,
   };
@@ -199,6 +243,12 @@ export function fromSellRequest(req: SellRequest): SellForm {
     facing: str(s.facing) || 'East',
     furnish: str(s.furnishing) || 'Unfurnished',
     parking: typeof s.parking === 'number' ? s.parking : 1,
+    parkingType: str(s.parkingType),
+    share: str(s.sharePercentage),
+    totalValue: str(s.totalPropertyValue),
+    scope: str(s.scopeOfWork),
+    furnishDetails: str(s.furnishDetails),
+    suitableFor: str(s.commercialType),
     plotArea: str(s.plotArea),
     zoning: amenities.find(a => a.startsWith('Zoning: '))?.slice(8) ?? '',
     roadAccess:

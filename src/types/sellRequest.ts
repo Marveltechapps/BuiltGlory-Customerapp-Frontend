@@ -41,6 +41,12 @@ export interface SellSpecifications {
   furnishDetails?: string | null;
   parking?: number | null;
   parkingType?: string | null;
+  sharePercentage?: number | null;
+  totalPropertyValue?: number | null;
+  scopeOfWork?: string | null;
+  commercialType?: string | null;
+  roadWidth?: number | null;
+  approvalType?: string | null;
 }
 
 export interface SellDocument {

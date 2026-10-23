@@ -18,7 +18,8 @@ import {
 import type { SellRequest } from '../../types/sellRequest';
 import { palette, tw } from '../../theme';
 import { errorMessage } from '../../utils/errorMessage';
-import { SELL_STATUS_LABEL } from './sellShared';
+import { AREA_MIN, PRICE_MIN, TITLE_MIN, sellKind } from './sellCategory';
+import { PillChoice, SELL_STATUS_LABEL } from './sellShared';
 
 const EDITABLE = ['draft', 'changes_requested'];
 const STATUS_LABEL = SELL_STATUS_LABEL;
@@ -38,8 +39,13 @@ export function EditListingScreen({ params }: ScreenProps<'editListing'>) {
   const [data, setData] = useState({
     title: '',
     price: '',
-    area: '',
+    bhk: '',
+    builtUp: '',
+    plotArea: '',
     floor: '',
+    share: '',
+    totalValue: '',
+    scope: '',
   });
   const [saving, setSaving] = useState<'save' | 'draft' | null>(null);
   const [saved, setSaved] = useState(false);
@@ -51,8 +57,13 @@ export function EditListingScreen({ params }: ScreenProps<'editListing'>) {
     setData({
       title: req.propertyTitle ?? '',
       price: req.askingPrice ? String(req.askingPrice) : '',
-      area: s.builtUpArea ? String(s.builtUpArea) : '',
+      bhk: s.bhk ? String(s.bhk) : '',
+      builtUp: s.builtUpArea ? String(s.builtUpArea) : '',
+      plotArea: s.plotArea ? String(s.plotArea) : '',
       floor: s.floor !== null && s.floor !== undefined ? String(s.floor) : '',
+      share: s.sharePercentage ? String(s.sharePercentage) : '',
+      totalValue: s.totalPropertyValue ? String(s.totalPropertyValue) : '',
+      scope: s.scopeOfWork ? String(s.scopeOfWork) : '',
     });
   }, [req]);
 
@@ -64,14 +75,28 @@ export function EditListingScreen({ params }: ScreenProps<'editListing'>) {
     setError(null);
     try {
       const price = Number(data.price);
+      const kind = sellKind(req.propertyType);
+      const specs = { ...(req.specifications ?? {}) };
+      if (kind === 'home') {
+        specs.bhk = data.bhk;
+        specs.builtUpArea = Number(data.builtUp) || undefined;
+        specs.floor = data.floor || undefined;
+      } else if (kind === 'plot') {
+        specs.plotArea = Number(data.plotArea) || undefined;
+      } else if (kind === 'commercial') {
+        specs.builtUpArea = Number(data.builtUp) || undefined;
+        specs.plotArea = Number(data.plotArea) || undefined;
+        specs.floor = data.floor || undefined;
+      } else if (kind === 'fractional') {
+        specs.sharePercentage = Number(data.share) || undefined;
+        specs.totalPropertyValue = Number(data.totalValue) || undefined;
+      } else {
+        specs.scopeOfWork = data.scope.trim() || undefined;
+      }
       return await updateMySellRequest(req._id, {
         propertyTitle: data.title.trim(),
         ...(price ? { askingPrice: price } : {}),
-        specifications: {
-          ...(req.specifications ?? {}),
-          builtUpArea: Number(data.area) || undefined,
-          floor: data.floor || undefined,
-        },
+        specifications: specs,
       });
     } catch (e) {
       setError(errorMessage(e));
@@ -80,6 +105,23 @@ export function EditListingScreen({ params }: ScreenProps<'editListing'>) {
       setSaving(null);
     }
   };
+
+  const kind = sellKind(req?.propertyType);
+  const areaOk = (v: string) => (Number(v) || 0) >= AREA_MIN;
+  const valid =
+    data.title.trim().length >= TITLE_MIN &&
+    (Number(data.price) || 0) >= PRICE_MIN &&
+    (kind === 'home'
+      ? Boolean(data.bhk) && areaOk(data.builtUp)
+      : kind === 'plot'
+        ? areaOk(data.plotArea)
+        : kind === 'commercial'
+          ? areaOk(data.builtUp) || areaOk(data.plotArea)
+          : kind === 'fractional'
+            ? Number(data.share) >= 0.01 &&
+              Number(data.share) <= 100 &&
+              (Number(data.totalValue) || 0) >= PRICE_MIN
+            : data.scope.trim().length >= 2);
 
   const save = async () => {
     const updated = await persist('save');
@@ -116,7 +158,7 @@ export function EditListingScreen({ params }: ScreenProps<'editListing'>) {
               tone={saved ? 'emerald' : 'brand'}
               loading={saving === 'save'}
               loadingLabel="Saving…"
-              disabled={!editable || !data.title.trim()}
+              disabled={!editable || !valid}
               onPress={save}
             />
             {req.status === 'draft' && (
@@ -182,28 +224,59 @@ export function EditListingScreen({ params }: ScreenProps<'editListing'>) {
                   onChangeText={v => setData(d => ({ ...d, price: digits(v) }))}
                 />
               </Field>
-              <Grid cols={2} gap={12}>
-                <Field label="Built-up Area">
-                  <Input
-                    editable={editable}
-                    keyboardType="number-pad"
-                    value={data.area}
-                    onChangeText={v =>
-                      setData(d => ({ ...d, area: digits(v) }))
-                    }
-                  />
+              {kind === 'home' && (
+                <>
+                  <Field label="BHK" required>
+                    <View style={styles.wrap}>
+                      {['1', '2', '3', '4', '5+', 'Studio'].map(b => (
+                        <PillChoice key={b} label={b} on={data.bhk === b} onPress={() => editable && setData(d => ({ ...d, bhk: b }))} />
+                      ))}
+                    </View>
+                  </Field>
+                  <Grid cols={2} gap={12}>
+                    <Field label="Built-up Area" required>
+                      <Input editable={editable} keyboardType="number-pad" value={data.builtUp} onChangeText={v => setData(d => ({ ...d, builtUp: digits(v) }))} />
+                    </Field>
+                    <Field label="Floor">
+                      <Input editable={editable} keyboardType="number-pad" value={data.floor} onChangeText={v => setData(d => ({ ...d, floor: digits(v) }))} />
+                    </Field>
+                  </Grid>
+                </>
+              )}
+              {kind === 'plot' && (
+                <Field label="Plot Area (sqft)" required>
+                  <Input editable={editable} keyboardType="number-pad" value={data.plotArea} onChangeText={v => setData(d => ({ ...d, plotArea: digits(v) }))} />
                 </Field>
-                <Field label="Floor">
-                  <Input
-                    editable={editable}
-                    keyboardType="number-pad"
-                    value={data.floor}
-                    onChangeText={v =>
-                      setData(d => ({ ...d, floor: digits(v) }))
-                    }
-                  />
+              )}
+              {kind === 'commercial' && (
+                <Grid cols={2} gap={12}>
+                  <Field label="Built-up Area">
+                    <Input editable={editable} keyboardType="number-pad" value={data.builtUp} onChangeText={v => setData(d => ({ ...d, builtUp: digits(v) }))} />
+                  </Field>
+                  <Field label="Plot Area">
+                    <Input editable={editable} keyboardType="number-pad" value={data.plotArea} onChangeText={v => setData(d => ({ ...d, plotArea: digits(v) }))} />
+                  </Field>
+                </Grid>
+              )}
+              {kind === 'fractional' && (
+                <Grid cols={2} gap={12}>
+                  <Field label="Share %" required>
+                    <Input editable={editable} keyboardType="decimal-pad" value={data.share} onChangeText={v => setData(d => ({ ...d, share: v.replace(/[^\d.]/g, '') }))} />
+                  </Field>
+                  <Field label="Total Value (₹)" required>
+                    <Input editable={editable} keyboardType="number-pad" value={data.totalValue} onChangeText={v => setData(d => ({ ...d, totalValue: digits(v) }))} />
+                  </Field>
+                </Grid>
+              )}
+              {kind === 'interior' && (
+                <Field label="Scope of Work" required>
+                  <View style={styles.wrap}>
+                    {['Full Home', 'Kitchen', 'Living', 'Bedroom', 'Office'].map(s => (
+                      <PillChoice key={s} label={s} on={data.scope === s} onPress={() => editable && setData(d => ({ ...d, scope: s }))} />
+                    ))}
+                  </View>
                 </Field>
-              </Grid>
+              )}
               <Press
                 disabled={!editable}
                 onPress={() => nav.go('sellPhotos', { editId: req._id })}
@@ -228,6 +301,7 @@ const styles = StyleSheet.create({
   bannerInfo: tw('bg-brand-50'),
   bannerText: tw('flex-1 text-[12px]'),
   fields: { gap: 16 },
+  wrap: tw('flex flex-wrap gap-2'),
   link: tw(
     'w-full flex items-center justify-between p-3.5 rounded-card border border-ink-200',
   ),
