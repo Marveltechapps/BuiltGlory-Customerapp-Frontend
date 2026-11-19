@@ -1,24 +1,22 @@
-# mineral-bridge-mobile-app
+# BuiltGlory Customer App
 
-React Native CLI + TypeScript starter following the structure of `Selorg-CustomerApp-V2.0` in the Selorg Application reference. Includes a small sample feature demonstrating file and folder conventions.
+React Native (CLI) + TypeScript app for BuiltGlory customers. It uses the BuiltGlory API for property search, buying, selling, profile, and settings.
 
 ```sh
 npm install
 npm start
 ```
 
-Requires Node >=20, Android SDK/JDK for Android, or Xcode and CocoaPods for iOS.
+Requires Node >= 20. Android also needs the Android SDK and JDK. iOS needs Xcode and CocoaPods.
 
 Android: `npm run android`.
 
-iOS: `bundle install`, then `cd ios && bundle exec pod install`, return to the project directory and run `npm run ios`.
+iOS: `bundle install`, then `cd ios && bundle exec pod install`, return to the project directory, and run `npm run ios`.
 
-API configuration lives in `src/api/config.ts`; use your computer’s LAN IP for a physical device. No environment loader is configured for mobile. Android application ID: `com.mineralbridge`; iOS bundle identifier: `com.mineralbridge`; configure signing before device deployment.
+The API base URL is set in `src/api/config.ts`. Debug builds use the local service (`http://10.0.2.2:5001/api/v1` on Android, `http://localhost:5001/api/v1` on iOS). Release builds use `https://api.builtglory.com/api/v1`. Set `API_BASE_URL` or `EXPO_PUBLIC_API_BASE_URL` to your computer’s LAN IP when testing on a physical device.
 
-Screens go in `src/screens/<feature>/`; navigation, components, context, theme, API, services, types, and interfaces use the reference folder conventions. Components use `.tsx`; helpers use `.ts`. Native projects are in `android/` and `ios/`.
+Display name: **BuiltGlory**. Android application ID: `com.mineralbridge`. Configure signing before device deployment.
 
-Run `npm run typecheck` to check TypeScript. Dependencies must be installed in this repository first.
+Screens live in `src/screens/` (`auth`, `buy`, `home`, `profile`, `sell`, `settings`). Navigation, components, context, theme, API, services, types, and interfaces follow the same folder layout. Components use `.tsx`; helpers use `.ts`. Native projects are in `android/` and `ios/`.
 
-## Sample files
-
-The sample feature reads `GET /api/samples` from the service. Start the service before using the sample screens. Tap **View sample items**; API host settings are in `src/api/config.ts`. The route switch is a minimal example; add React Navigation for full app navigation.
+Run `npm run typecheck` to check TypeScript. Install dependencies in this repository before running the app.
