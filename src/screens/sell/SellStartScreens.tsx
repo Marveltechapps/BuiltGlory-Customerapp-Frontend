@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Icon } from '../../components/icons/Icon';
-import { MapGrid } from '../../components/journey/BuyParts';
+import { TileMap } from '../../components/TileMap';
+import { readCurrentPosition } from '../../utils/geolocation';
 import { SellHeader, TextIn } from '../../components/journey/SellParts';
 import { DockBar } from '../../components/layout/AppScreen';
 import { Grid } from '../../components/layout/Grid';
@@ -17,7 +18,7 @@ import { PROPERTY_TYPES } from '../../config/sampleData';
 import { useAuth } from '../../context/AuthContext';
 import { getSD, sdSet } from '../../context/sellStore';
 import type { ScreenProps } from '../../navigation/types';
-import { colors, elev, gradients, ring } from '../../theme';
+import { colors, elev, ring } from '../../theme';
 import * as geoService from '../../services/geo.service';
 import { errorMessage } from '../../utils/errorMessage';
 
@@ -177,21 +178,35 @@ export function SellAddressScreen({ go, back, ctx }: ScreenProps) {
     setGeoBusy(true);
     setGeoErr('');
     try {
-      // Default Chennai pin when device GPS isn't wired; reverse-geocode fills locality.
-      const lat = 13.08;
-      const lng = 80.27;
-      const geo = await geoService.reverseGeocode(lat, lng);
-      setD((x: Record<string, unknown>) => ({
-        ...x,
-        pinned: true,
-        latitude: geo.latitude ?? lat,
-        longitude: geo.longitude ?? lng,
-        city: geo.city || x.city,
-        state: geo.state || x.state,
-        area: geo.locality || x.area,
-        pin: geo.pincode || x.pin,
-        street: geo.street || x.street,
-      }));
+      const position = await readCurrentPosition();
+      if (position) {
+        const geo = await geoService.reverseGeocode(position.coords.latitude, position.coords.longitude);
+        setD((x: Record<string, unknown>) => ({
+          ...x,
+          pinned: true,
+          latitude: geo.latitude ?? position.coords.latitude,
+          longitude: geo.longitude ?? position.coords.longitude,
+          city: geo.city || x.city,
+          state: geo.state || x.state,
+          area: geo.locality || x.area,
+          pin: geo.pincode || x.pin,
+          street: geo.street || x.street,
+        }));
+      } else {
+        const query = [d.door, d.street, d.area, d.city, d.state, d.pin, 'India'].filter(Boolean).join(', ');
+        const geo = await geoService.forwardGeocode(query);
+        if (!geo) throw new Error('Enter the area and city, then tap the map again.');
+        setD((x: Record<string, unknown>) => ({
+          ...x,
+          pinned: true,
+          latitude: geo.latitude,
+          longitude: geo.longitude,
+          city: geo.city || x.city,
+          state: geo.state || x.state,
+          area: geo.locality || x.area,
+          pin: geo.pincode || x.pin,
+        }));
+      }
       buzz();
     } catch (err) {
       setGeoErr(errorMessage(err));
@@ -204,8 +219,7 @@ export function SellAddressScreen({ go, back, ctx }: ScreenProps) {
       <SellHeader step={2} back={back} title="Property address" sub="Where is the property?" />
       <View style={[styles.form, styles.gap14]}>
         <Pressable onPress={pinLocation} style={styles.map}>
-          <View style={[StyleSheet.absoluteFill, { experimental_backgroundImage: gradients.map }]} />
-          <MapGrid />
+          <TileMap latitude={typeof d.latitude === 'number' ? d.latitude : null} longitude={typeof d.longitude === 'number' ? d.longitude : null} zoom={15} style={StyleSheet.absoluteFill} />
           <View style={styles.pinCenter} pointerEvents="none">
             {d.pinned
               ? <PopIn key="on" style={[styles.pin, { backgroundColor: colors.emerald500 }]}><Icon name="check" size={17} color="white" /></PopIn>

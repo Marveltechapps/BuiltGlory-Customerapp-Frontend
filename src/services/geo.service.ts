@@ -11,6 +11,13 @@ export type ReverseGeoApi = {
   longitude: number;
 };
 
+export async function forwardGeocode(query: string, signal?: AbortSignal): Promise<ReverseGeoApi | null> {
+  const q = query.trim();
+  if (q.length < 3) return null;
+  const { data } = await apiRequest<ReverseGeoApi>('/geo/forward', { query: { q }, signal, skipAuthRefresh: true });
+  return data;
+}
+
 export async function reverseGeocode(
   latitude: number,
   longitude: number,

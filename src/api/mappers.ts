@@ -137,6 +137,8 @@ export function mapProperty(api: PropertyApi): Property {
     flatNo: specs.unitNo ? String(specs.unitNo) : '—',
     location: address.locality || '',
     city: address.city || '',
+    latitude: typeof address.latitude === 'number' ? address.latitude : null,
+    longitude: typeof address.longitude === 'number' ? address.longitude : null,
     images: photos,
     amenities: api.amenities || [],
     verified,

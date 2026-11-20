@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { mapProperties } from '../../api/mappers';
 import { StatusHero } from '../../components/hero/StatusHero';
 import { Icon } from '../../components/icons/Icon';
-import { MapGrid } from '../../components/journey/BuyParts';
+import { TileMap, fitZoom, pinStyle } from '../../components/TileMap';
 import { BottomNav } from '../../components/layout/BottomNav';
 import { BottomBar, Screen, TopBar } from '../../components/layout/Screen';
 import { PropertyCard } from '../../components/PropertyCard';
@@ -16,7 +16,8 @@ import { SPECS } from '../../config/sampleData';
 import { useAuth } from '../../context/AuthContext';
 import type { ScreenProps } from '../../navigation/types';
 import * as properties from '../../services/properties.service';
-import { colors, elev, gradients } from '../../theme';
+import { colors, elev } from '../../theme';
+import * as geoService from '../../services/geo.service';
 import type { Property } from '../../types/property';
 import { errorMessage } from '../../utils/errorMessage';
 import { formatINR } from '../../utils/format';
@@ -143,9 +144,9 @@ export function AdvancedFiltersScreen({ back }: ScreenProps) {
 
 /** Map view of listings */
 export function MapViewScreen({ go, back, fav, toggleFav }: ScreenProps) {
-  const [pins, setPins] = useState<Array<{ id: string; x: number; y: number; p: Property }>>([]);
+  const [pins, setPins] = useState<Property[]>([]);
   const [active, setActive] = useState<string | null>(null);
-  const [box, setBox] = useState({ w: 0, h: 0 });
+  const [zoom, setZoom] = useState(13);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -154,18 +155,30 @@ export function MapViewScreen({ go, back, fav, toggleFav }: ScreenProps) {
     setLoading(true);
     properties
       .listProperties({ limit: 20, page: 1 }, ac.signal)
-      .then(res => {
+      .then(async res => {
         if (ac.signal.aborted) return;
         const mapped = mapProperties(res.items);
         cacheProperties(mapped);
-        const next = mapped.map((p, i) => ({
-          id: p.id,
-          x: 25 + ((i * 17) % 55),
-          y: 30 + ((i * 23) % 45),
-          p,
-        }));
-        setPins(next);
-        setActive(next[0]?.id || null);
+        const placed: Property[] = [];
+        for (const property of mapped) {
+          if (ac.signal.aborted) return;
+          if (typeof property.latitude === 'number' && typeof property.longitude === 'number') {
+            placed.push(property);
+            continue;
+          }
+          const query = [property.location, property.city, 'India'].filter(Boolean).join(', ');
+          try {
+            const geo = await geoService.forwardGeocode(query, ac.signal);
+            placed.push(geo ? { ...property, latitude: geo.latitude, longitude: geo.longitude } : property);
+          } catch {
+            placed.push(property);
+          }
+        }
+        if (ac.signal.aborted) return;
+        const located = placed.filter(p => typeof p.latitude === 'number' && typeof p.longitude === 'number');
+        setPins(placed);
+        setActive(located[0]?.id || placed[0]?.id || null);
+        if (located.length) setZoom(fitZoom(located.map(p => ({ latitude: p.latitude as number, longitude: p.longitude as number }))));
       })
       .catch(err => {
         if (ac.signal.aborted) return;
@@ -178,7 +191,17 @@ export function MapViewScreen({ go, back, fav, toggleFav }: ScreenProps) {
     return () => ac.abort();
   }, []);
 
-  const ap = pins.find(p => p.id === active)?.p || pins[0]?.p;
+  const located = pins.filter((p): p is Property & { latitude: number; longitude: number } => typeof p.latitude === 'number' && typeof p.longitude === 'number');
+  const ap = pins.find(p => p.id === active) || located[0] || pins[0];
+  const focus = located.find(p => p.id === active) || located[0];
+  const center = focus
+    ? { latitude: focus.latitude, longitude: focus.longitude }
+    : located.length
+      ? {
+          latitude: located.reduce((sum, p) => sum + p.latitude, 0) / located.length,
+          longitude: located.reduce((sum, p) => sum + p.longitude, 0) / located.length,
+        }
+      : { latitude: 13.0827, longitude: 80.2707 };
   return (
     <Screen>
       <TopBar onBack={back} title="Map view" right={
@@ -192,27 +215,26 @@ export function MapViewScreen({ go, back, fav, toggleFav }: ScreenProps) {
         </View>
       ) : (
         <>
-          <View style={styles.map} onLayout={e => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}>
-            <View style={[StyleSheet.absoluteFill, styles.mapBg]} />
-            <MapGrid />
-            {box.w > 0 && pins.map(pin => {
+          <TileMap latitude={center.latitude} longitude={center.longitude} zoom={zoom} style={styles.map}>
+            {located.map(pin => {
               const on = active === pin.id;
               return (
-                <View key={pin.id} style={[styles.pinAnchor, { left: (pin.x / 100) * box.w, top: (pin.y / 100) * box.h }]}>
+                <View key={pin.id} style={[styles.pinAnchor, pinStyle(center, pin.latitude, pin.longitude, zoom)]}>
                   <View style={styles.pinBox}>
                     <Pressable onPress={() => setActive(pin.id)} style={[styles.pin, { backgroundColor: on ? colors.brand600 : colors.white }]}>
                       <Icon name="map-pin" size={11} color={on ? 'white' : '#0F172A'} />
-                      <T s={11} w={700} c={on ? colors.white : colors.ink900}>{formatINR(pin.p.price).replace('₹ ', '')}</T>
+                      <T s={11} w={700} c={on ? colors.white : colors.ink900}>{formatINR(pin.price).replace('₹ ', '')}</T>
                     </Pressable>
                   </View>
                 </View>
               );
             })}
             <View style={styles.zoom}>
-              {(['plus', 'minus'] as const).map(i => <Pressable key={i} style={styles.zoomBtn} accessibilityLabel={i === 'plus' ? 'Zoom in' : 'Zoom out'}><Icon name={i} size={14} /></Pressable>)}
-              <Pressable style={styles.zoomBtn} accessibilityLabel="My location"><Icon name="locate-fixed" size={14} color="#1A6FFF" /></Pressable>
+              <Pressable onPress={() => setZoom(z => Math.min(18, z + 1))} style={styles.zoomBtn} accessibilityLabel="Zoom in"><Icon name="plus" size={14} /></Pressable>
+              <Pressable onPress={() => setZoom(z => Math.max(11, z - 1))} style={styles.zoomBtn} accessibilityLabel="Zoom out"><Icon name="minus" size={14} /></Pressable>
+              <Pressable onPress={() => focus && setActive(focus.id)} style={styles.zoomBtn} accessibilityLabel="Center on selected property"><Icon name="locate-fixed" size={14} color="#1A6FFF" /></Pressable>
             </View>
-          </View>
+          </TileMap>
           <View style={styles.cardBar}>
             <PropertyCard p={ap} variant="compact" fav={fav.has(ap.id)} onFav={() => toggleFav(ap.id)} onPress={() => go('propertyDetail', { p: ap })} />
           </View>
@@ -233,8 +255,7 @@ const styles = StyleSheet.create({
   emptyBtn: { marginTop: 16, alignSelf: 'center' },
   sections: { paddingHorizontal: 16, paddingBottom: 80, gap: 20 },
   listBtn: { width: 36, height: 36, borderRadius: 9999, backgroundColor: colors.ink100, alignItems: 'center', justifyContent: 'center' },
-  map: { minHeight: 340 },
-  mapBg: { experimental_backgroundImage: gradients.map },
+  map: { flex: 1, minHeight: 340 },
   pinAnchor: { position: 'absolute', width: 0, height: 0 },
   pinBox: { position: 'absolute', bottom: 0, left: -100, width: 200, alignItems: 'center' },
   pin: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 9999, flexDirection: 'row', alignItems: 'center', gap: 4, boxShadow: elev.md },

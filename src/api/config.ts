@@ -9,15 +9,15 @@ import { Platform } from 'react-native';
  *   'https://api.builtglory.com/api/v1' (production)
  * Leave empty to use the platform default for the current build type.
  */
-const envApiBase = (() => {
-  try {
-    // Expo / Metro injects EXPO_PUBLIC_* at bundle time; avoid hard Node `process` typing in RN.
-    const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
-    return env?.EXPO_PUBLIC_API_BASE_URL || env?.API_BASE_URL || '';
-  } catch {
-    return '';
-  }
-})();
+declare const process: {
+  env: {
+    API_BASE_URL?: string;
+    EXPO_PUBLIC_API_BASE_URL?: string;
+  };
+};
+
+/** Inlined from the shell or this app's `.env` when Metro bundles the app. */
+const envApiBase = process.env.EXPO_PUBLIC_API_BASE_URL || process.env.API_BASE_URL || '';
 
 export const API_HOST_OVERRIDE = envApiBase;
 

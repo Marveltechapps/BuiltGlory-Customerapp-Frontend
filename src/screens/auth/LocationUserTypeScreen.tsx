@@ -12,6 +12,7 @@ import { T } from '../../components/ui/T';
 import { updateUser } from '../../lib/session';
 import type { ScreenProps } from '../../navigation/types';
 import * as geoService from '../../services/geo.service';
+import { readCurrentPosition } from '../../utils/geolocation';
 import * as meService from '../../services/me.service';
 import { colors, elev } from '../../theme';
 
@@ -58,38 +59,16 @@ export function LocationUserTypeScreen({ onNext }: ScreenProps) {
     setLocState('granted');
   };
 
-  /** No geolocation package installed — surface failed so the user can enter city manually. */
   const requestLocation = async () => {
     setError(null);
     setLocState('locating');
     try {
-      type GeoPos = { coords: { latitude: number; longitude: number } };
-      type GeoApi = {
-        getCurrentPosition: (
-          success: (pos: GeoPos) => void,
-          error?: () => void,
-          options?: { enableHighAccuracy?: boolean; timeout?: number; maximumAge?: number },
-        ) => void;
-      };
-      const navGeo = (globalThis as { navigator?: { geolocation?: GeoApi } }).navigator?.geolocation;
-      if (!navGeo?.getCurrentPosition) {
+      const position = await readCurrentPosition();
+      if (!position) {
         setLocState('failed');
         return;
       }
-      await new Promise<void>((resolve, reject) => {
-        navGeo.getCurrentPosition(
-          async (pos) => {
-            try {
-              await applyReverse(pos.coords.latitude, pos.coords.longitude);
-              resolve();
-            } catch (e) {
-              reject(e);
-            }
-          },
-          () => reject(new Error('location_denied')),
-          { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
-        );
-      });
+      await applyReverse(position.coords.latitude, position.coords.longitude);
     } catch {
       setLocState('failed');
     }

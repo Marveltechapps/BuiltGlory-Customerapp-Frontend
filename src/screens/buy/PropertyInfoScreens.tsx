@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { mapProperties } from '../../api/mappers';
 import { Icon } from '../../components/icons/Icon';
-import { MapGrid } from '../../components/journey/BuyParts';
+import { TileMap } from '../../components/TileMap';
 import { Card } from '../../components/layout/Groups';
 import { Grid } from '../../components/layout/Grid';
 import { Screen, TopBar } from '../../components/layout/Screen';
@@ -91,8 +91,7 @@ export function LocationScreen(props: ScreenProps) {
             <TopBar onBack={back} title="Location" sub={`${p.location}, ${p.city}`} />
             <View style={styles.locBody}>
               <Pressable onPress={() => go('mapView', { p })} style={styles.bigMap} accessibilityRole="button">
-                <View style={[StyleSheet.absoluteFill, styles.mapBg]} />
-                <MapGrid />
+                <TileMap latitude={p.latitude} longitude={p.longitude} zoom={15} style={StyleSheet.absoluteFill} />
                 <View style={styles.pinCenter} pointerEvents="none">
                   <PopIn style={styles.pinLift}><View style={styles.pin}><Icon name="map-pin" size={20} color="white" /></View></PopIn>
                 </View>

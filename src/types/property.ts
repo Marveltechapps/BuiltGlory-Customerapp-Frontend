@@ -11,6 +11,8 @@ export interface Property {
   flatNo: string;
   location: string;
   city: string;
+  latitude?: number | null;
+  longitude?: number | null;
   images: string[];
   amenities: string[];
   verified: boolean;
